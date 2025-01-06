@@ -1,4 +1,4 @@
-from Functions import get_and_process_folder
+from Functions import get_and_process_folder, export_to_csv, validate_manual_sort, display_validation_results
 
 def menu():
     print("Menu")
@@ -19,7 +19,8 @@ def main():
         if choice == '1':
             print('\nBeginning Pole Folder Processing.')
             print('-' * 50)
-            csv_file = input('Enter the path to the CSV file containing pole data: ')
+            #csv_file = input('Enter the path to the CSV file containing pole data: ')
+            csv_file = "D:/BearValleyTesting/polelocations.csv"
             folder_matches = get_and_process_folder(csv_file)
         elif choice == '2':
             if folder_matches:
@@ -28,9 +29,17 @@ def main():
                 print("No results. Process pole folders first.")
             returntomenu()
         elif choice == '3':
-            print('in progress')
+            if folder_matches:
+                csv_output_file = input('Enter the path to the CSV you wish to write to: ')
+                export_to_csv(folder_matches, csv_output_file)
+            else:
+                print("No results to export. Run option 1 first.")
         elif choice == '4':
-            print('in progress')
+            if folder_matches:
+                correct_matches, incorrect_folders = validate_manual_sort(folder_matches)
+                display_validation_results(correct_matches, incorrect_folders)
+            else:
+                print("Process pole folders first.")
         elif choice == '5':
             break
         else:

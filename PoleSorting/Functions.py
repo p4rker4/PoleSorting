@@ -2,6 +2,7 @@ import os
 import piexif
 import csv
 from math import sqrt
+from concurrent.futures import ThreadPoolExecutor
 
 def get_exif_data(image_file):
     try:
@@ -72,7 +73,8 @@ def get_dd_coordinates(pole_folder):
         return None, None
 
 def get_and_process_folder(csv_file):
-    root_folder = input("Enter the root folder location: ")
+    #root_folder = input("Enter the root folder location: ")
+    root_folder = "D:/BVES2024"
 
     if not os.path.exists(root_folder):
         print(f"Error: Path '{root_folder}' does not exist.")
@@ -103,12 +105,12 @@ def get_and_process_folder(csv_file):
 
         return folder_matches
 
-
 def calc_distance(lat1, lon1, lat2, lon2):
     return sqrt((lat2 - lat1)**2 + (lon2 - lon1)**2)
 
 def read_pole_data(csv_file):
     pole_data = {}
+    pole_count = {}
     try:
         with open(csv_file, 'r') as file:
             reader = csv.reader(file)
@@ -117,6 +119,14 @@ def read_pole_data(csv_file):
                 pole_num = row[0]
                 latitude = float(row[1])
                 longitude = float(row[2])
+
+                #check if the pole has a prior instance of the name, if it does, add 1 to its count and append it to the name
+                if pole_num in pole_count:
+                    pole_count[pole_num] += 1
+                    pole_num = f"{pole_num}-{pole_count[pole_num]}"
+                else:
+                    pole_count[pole_num] = 1
+
                 pole_data[pole_num] = (latitude, longitude)
     except Exception as e:
         print(f"Error reading CSV file: {e}")
@@ -131,3 +141,62 @@ def find_closest_pole(avg_lat, avg_lon, pole_data):
             closest_pole = pole_num
             closest_distance = distance
     return closest_pole, closest_distance
+
+def export_to_csv(folder_matches, csv_output_file):
+    with open(csv_output_file, mode ='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['Folder Name', 'Matched Pole', 'Distance','Latitude', 'Longitude', 'Status'])
+
+        for folder, data in folder_matches.items():
+            folder_name = folder
+            matched_pole = data['closest_pole']
+            distance = (data['distance'] * 111000) if data['distance'] is not None else None
+            latitude, longitude = data['average_coordinates']
+
+            if latitude is None and longitude is None:
+                status = 'No GPS data'
+            elif distance is not None and distance > 10:
+                status = 'Matched outside 10m'
+            else:
+                status = 'Matched'
+
+            writer.writerow([folder_name, matched_pole, distance, latitude, longitude, status])
+
+def extract_pole_from_folder(folder_name):
+    # Folder name is expected to be the pole number directly, e.g., 'pole123'
+    return folder_name
+
+def validate_manual_sort(folder_matches):
+    correct_matches = 0
+    incorrect_folders = []
+
+    # Compare the folder name (manual pole) with the auto-assigned pole
+    for folder, data in folder_matches.items():
+        # Extract the manual pole directly from the folder name
+        manual_pole = extract_pole_from_folder(folder)
+
+        # Get the automatically assigned closest pole
+        auto_matched_pole = data['closest_pole']
+
+        # If the manual pole is extracted successfully and matches the auto-assigned pole
+        if manual_pole and auto_matched_pole:
+            if manual_pole == auto_matched_pole:
+                correct_matches += 1
+            else:
+                incorrect_folders.append({
+                    'folder': folder,
+                    'manual_pole': manual_pole,
+                    'auto_matched_pole': auto_matched_pole
+                })
+
+    return correct_matches, incorrect_folders
+
+def display_validation_results(correct_matches, incorrect_folders):
+    print(f"\nTotal correct matches: {correct_matches}")
+
+    if incorrect_folders:
+        print("\nIncorrect matches:")
+        for item in incorrect_folders:
+            print(f"Manual: {item['manual_pole']} / Auto: {item['auto_matched_pole']}")
+    else:
+        print("No incorrect matches.")
