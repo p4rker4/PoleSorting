@@ -1,19 +1,20 @@
 from Functions import get_and_process_folder, export_to_csv, validate_manual_sort, display_validation_results
+from ImageFunctions import extract_image_metadata, create_trapezoid
 
-def menu():
-    print("Menu")
+def foldermenu():
+    print("Folder Based Analysis")
     print("-" * 50)
     print("1. Process Pole Folders")
     print("2. View Results")
     print("3. Export Results to CSV")
     print("4. Validate Manual Sort")
-    print("5. Exit Program")
+    print("5. Return to Main Menu")
     print('-' * 50)
 
-def main():
+def foldermain():
     folder_matches = {}
     while True:
-        menu()
+        foldermenu()
         choice = input("Please select an option (1-5): ")
 
         if choice == '1':
@@ -44,6 +45,35 @@ def main():
             break
         else:
             print('Select a number from the list.')
+
+def imagemain():
+    while True:
+        imagemenu()
+        choice = input("Please select an option (1-4): ")
+
+        if choice == '1':
+            folder_path = input('Input folder path: ')
+            image_metadata = extract_image_metadata(folder_path)
+            trapezoids = create_trapezoid(image_metadata)
+            print(trapezoids)  # Print results for testing
+
+        elif choice == '2':
+            print('tbd')
+        elif choice == '3':
+            print('tbd')
+        elif choice == '4':
+            break
+        else:
+            print('Select a number from the list.')
+
+def imagemenu():
+    print("Image Based Analysis")
+    print("-" * 50)
+    print("1. Process Images")
+    print("2. View Results")
+    print("3. Export Results to CSV")
+    print("4. Return to Main Menu")
+    print('-' * 50)
 
 def returntomenu():
     input('\nPress Enter to return to the menu.')
@@ -82,6 +112,28 @@ def display_results(folder_matches):
     print('-' * 50)
     for folder in no_gps_or_no_image:
             print(folder)
+
+def mainmenu():
+    print("Pole Sorting")
+    print("-" * 50)
+    print("1. Folder Based Analysis")
+    print("2. Image Based Analysis")
+    print("3. Exit Program")
+    print('-' * 50)
+
+def main():
+    while True:
+        mainmenu()
+        choice = input("Please select an option (1-3): ")
+
+        if choice == '1':
+            foldermain()
+        elif choice == '2':
+            imagemain()
+        elif choice == '3':
+            break
+        else:
+            print('Select a number from the list.')
 
 if __name__ == "__main__":
     main()

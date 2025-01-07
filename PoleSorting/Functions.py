@@ -2,7 +2,6 @@ import os
 import piexif
 import csv
 from math import sqrt
-from concurrent.futures import ThreadPoolExecutor
 
 def get_exif_data(image_file):
     try:
