@@ -1,5 +1,6 @@
-from Functions import get_and_process_folder, export_to_csv, validate_manual_sort, display_validation_results
-from ImageFunctions import extract_image_metadata, create_trapezoid
+from Functions import get_and_process_folder, export_to_csv, validate_manual_sort, display_validation_results, read_pole_data
+from ImageFunctions import sort_into_folders, match_pole_to_trapezoid, extract_image_metadata, create_trapezoid
+
 
 def foldermenu():
     print("Folder Based Analysis")
@@ -53,15 +54,25 @@ def imagemain():
 
         if choice == '1':
             folder_path = input('Input folder path: ')
+            csv_file = input("Path to pole CSV file:")
+            #extract metadata
             image_metadata = extract_image_metadata(folder_path)
+            #create approx viewshed trapezoids
             trapezoids = create_trapezoid(image_metadata)
-            print(trapezoids)  # Print results for testing
+            #get the pole locations
+            pole_data = read_pole_data(csv_file)
+            #see if any poles are in each viewshed
+            inside_poles = match_pole_to_trapezoid(trapezoids, pole_data)
 
         elif choice == '2':
             print('tbd')
         elif choice == '3':
             print('tbd')
         elif choice == '4':
+            destination_folder = input('Input path where you want poles to be exported: ')
+            #if a picture has a matching pole, put it in the folder
+            sort_into_folders(inside_poles, destination_folder, folder_path)
+        elif choice == '5':
             break
         else:
             print('Select a number from the list.')
@@ -72,7 +83,8 @@ def imagemenu():
     print("1. Process Images")
     print("2. View Results")
     print("3. Export Results to CSV")
-    print("4. Return to Main Menu")
+    print("4. Export Matches to Pole Folders")
+    print("5. Return to Main Menu")
     print('-' * 50)
 
 def returntomenu():
