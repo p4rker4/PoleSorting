@@ -5,6 +5,7 @@ import geopandas as gpd
 from shapely.geometry import Polygon, Point
 from Functions import read_pole_data
 import shutil
+from geopy.distance import geodesic
 
 def extract_image_metadata(folder_path):
     #initialize as dictionary
@@ -30,42 +31,24 @@ def extract_image_metadata(folder_path):
                         }
     return image_metadata
 
-def create_trapezoid(metadata_dict, distance_outward=25, short_side_length=20, long_side_length=50):
-    #initialize blank dictionary
+def create_trapezoid(metadata_dict):
     trapezoid_data = {}
-
     for filename, data in metadata_dict.items():
-        #convert from str to float
         gps_lat = float(data['XMP:GPSLatitude'])
         gps_lon = float(data['XMP:GPSLongitude'])
         yaw_degree = float(data['XMP:GimbalYawDegree'])
-
-        #convert yaw to radians
         yaw_rad = math.radians(yaw_degree)
-
-        lat_offset_outward = distance_outward / 111000
-        lon_offset_outward = distance_outward / 111000
-
-        lat_offset_short = (short_side_length / 2) / 111000
-        lon_offset_short = (short_side_length / 2) / (111000 * math.cos(math.radians(gps_lat)))
-
-        lat_offset_long = (long_side_length / 2) / 111000
-        lon_offset_long = (long_side_length / 2) / (111000 * math.cos(math.radians(gps_lat)))
-
-        corners =[
-        (gps_lat + lat_offset_short * math.cos(yaw_rad) -lat_offset_outward * math.sin(yaw_rad),
-        gps_lon + lon_offset_short * math.sin(yaw_rad) - lon_offset_outward * math.cos(yaw_rad)),
-        (gps_lat - lat_offset_short * math.cos(yaw_rad) - lat_offset_outward * math.sin(yaw_rad),
-        gps_lon - lon_offset_short * math.sin(yaw_rad) - lon_offset_outward * math.cos(yaw_rad)),
-        (gps_lat - lat_offset_long * math.cos(yaw_rad) + lat_offset_outward * math.sin(yaw_rad),
-        gps_lon - lon_offset_long * math.sin(yaw_rad) + lon_offset_outward * math.cos(yaw_rad)),
-        (gps_lat + lat_offset_long * math.cos(yaw_rad) + lat_offset_outward * math.sin(yaw_rad),
-         gps_lon + lon_offset_long * math.sin(yaw_rad) + lon_offset_outward * math.cos(yaw_rad))
-        ]
-
-        trapezoid_data[filename] = corners
-
-
+        dx = math.cos(yaw_rad)
+        dy = math.sin(yaw_rad)
+        perp_dx = -dy
+        perp_dy = dx
+        point1 = geodesic(meters=10).destination((gps_lat, gps_lon), math.degrees(math.atan2(perp_dy, perp_dx)))
+        point2 = geodesic(meters=10).destination((gps_lat, gps_lon), math.degrees(math.atan2(-perp_dy, -perp_dx)))
+        forward_point = geodesic(meters=20).destination((gps_lat, gps_lon), yaw_degree)
+        point4 = geodesic(meters=20).destination((forward_point.latitude, forward_point.longitude), math.degrees(math.atan2(perp_dy, perp_dx)))
+        point3 = geodesic(meters=20).destination((forward_point.latitude, forward_point.longitude), math.degrees(math.atan2(-perp_dy, -perp_dx)))
+        trapezoid_data[filename] = [(point1.latitude, point1.longitude), (point2.latitude, point2.longitude),
+                                    (point3.latitude, point3.longitude), (point4.latitude, point4.longitude)]
     return trapezoid_data
 
 def match_pole_to_trapezoid(trapezoids, pole_data):
