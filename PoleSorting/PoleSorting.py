@@ -1,5 +1,7 @@
 from Functions import get_and_process_folder, export_to_csv, validate_manual_sort, display_validation_results, read_pole_data
 from ImageFunctions import sort_into_folders, match_pole_to_trapezoid, extract_image_metadata, create_trapezoid
+import geopandas as gpd
+from shapely.geometry import Point, Polygon
 
 def returntomenu():
     """Prompts the user to press Enter before returning to the menu."""
@@ -102,6 +104,9 @@ class ImageAnalysis:
     def __init__(self):
         self.inside_poles = None
         self.folder_path = None
+        self.trapezoids = None
+        self.pole_data = None
+        self.image_metadata = None
 
     def menu(self):
         print("Image Based Analysis")
@@ -118,10 +123,10 @@ class ImageAnalysis:
         self.folder_path = input('Input folder path: ')
         csv_file = input("Path to pole CSV file: ")
 
-        image_metadata = extract_image_metadata(self.folder_path)
-        trapezoids = create_trapezoid(image_metadata)
-        pole_data = read_pole_data(csv_file)
-        self.inside_poles = match_pole_to_trapezoid(trapezoids, pole_data)
+        self.image_metadata = extract_image_metadata(self.folder_path)
+        self.trapezoids = create_trapezoid(self.image_metadata)
+        self.pole_data = read_pole_data(csv_file)
+        self.inside_poles = match_pole_to_trapezoid(self.trapezoids, self.pole_data)
 
     def export_matches(self):
         if self.inside_poles and self.folder_path:
@@ -129,6 +134,57 @@ class ImageAnalysis:
             sort_into_folders(self.inside_poles, destination_folder, self.folder_path)
         else:
             print("No processed data. Run option 1 first.")
+
+    def export_to_shapefile(self, image_metadata, trapezoids, pole_data):
+        image_gdf = gpd.GeoDataFrame(columns=['image', 'geometry'], crs='EPSG:4326')
+        trapezoid_gdf = gpd.GeoDataFrame(columns=gpd.GeoDataFrame(columns=['image', 'geometry'], crs='EPSG:4326'))
+        pole_gdf = gpd.GeoDataFrame(columns=['pole', 'geometry'], crs='EPSG:4326')
+
+        #image locations
+        image_points = []
+        image_names = []
+
+        print(image_metadata)
+
+        for filename, data in image_metadata.items():
+            gps_lat = float(data['XMP:GPSLatitude'])
+            gps_lon = float(data['XMP:GPSLongitude'])
+            point = Point(gps_lon, gps_lat)
+            image_points.append(point)
+            image_names.append(filename)
+
+        if image_points:
+            image_gdf = gpd.GeoDataFrame({'image': image_names, 'geometry': image_points}, crs='EPSG:4326')
+
+        #trapezoids
+        trapezoid_polygons = []
+        trapezoid_names = []
+
+        for filename, corners in trapezoids.items():
+            corrected_corners = [(lon, lat) for lat, lon in corners]
+            polygon = Polygon(corrected_corners)
+            trapezoid_polygons.append(polygon)
+            trapezoid_names.append(filename)
+
+        if trapezoid_polygons:
+            trapezoid_gdf = gpd.GeoDataFrame({'image': trapezoid_names, 'geometry': trapezoid_polygons}, crs='EPSG:4326')
+
+        #poles
+        pole_points = []
+        pole_names = []
+
+        for pole_id, (lat, lon) in pole_data.items():
+            point = Point(lon, lat)
+            pole_points.append(point)
+            pole_names.append(pole_id)
+
+        pole_gdf = gpd.GeoDataFrame({'pole': pole_names, 'geometry': pole_points}, crs='EPSG:4326')
+
+        image_gdf.to_file("image_locations.shp")
+        trapezoid_gdf.to_file("trapezoids.shp")
+        pole_gdf.to_file("poles.shp")
+
+        print("Shapefiles created successfully.")
 
     def run(self):
         while True:
@@ -144,7 +200,7 @@ class ImageAnalysis:
             elif choice == '4':
                 self.export_matches()
             elif choice == '5':
-                print('tbd')
+                self.export_to_shapefile(self.image_metadata, self.trapezoids, self.pole_data)
             elif choice == '6':
                 break
             else:
