@@ -30,7 +30,7 @@ def extract_image_metadata(folder_path):
                         }
     return image_metadata
 
-def create_trapezoid(metadata_dict, distance=15, width_factor=1.5):
+def create_trapezoid(metadata_dict, distance_outward=25, short_side_length=20, long_side_length=50):
     #initialize blank dictionary
     trapezoid_data = {}
 
@@ -43,32 +43,28 @@ def create_trapezoid(metadata_dict, distance=15, width_factor=1.5):
         #convert yaw to radians
         yaw_rad = math.radians(yaw_degree)
 
-        #convert to degrees
-        lat_offset = distance / 111000  # Approximate meters per degree latitude
-        lon_offset = distance / (111000 * math.cos(math.radians(gps_lat)))  # Longitude adjustment
+        lat_offset_outward = distance_outward / 111000
+        lon_offset_outward = distance_outward / 111000
 
-        #generate trapezoid
-        corners = []
-        for i, angle in enumerate([yaw_rad - math.pi / 4, yaw_rad + math.pi / 4, yaw_rad + 3 * math.pi / 4, yaw_rad - 3 * math.pi / 4]):
-            #scale the width
-            if i < 2:  #adjust outward corners
-                lat_offset_scaled = lat_offset * width_factor
-                lon_offset_scaled = lon_offset * width_factor
-            else:  #keep inward corners the same
-                lat_offset_scaled = lat_offset
-                lon_offset_scaled = lon_offset
+        lat_offset_short = (short_side_length / 2) / 111000
+        lon_offset_short = (short_side_length / 2) / (111000 * math.cos(math.radians(gps_lat)))
 
-            lat_change = math.sin(angle) * lat_offset_scaled
-            lon_change = math.cos(angle) * lon_offset_scaled
+        lat_offset_long = (long_side_length / 2) / 111000
+        lon_offset_long = (long_side_length / 2) / (111000 * math.cos(math.radians(gps_lat)))
 
-            #compute corners location
-            new_lat = gps_lat + lat_change
-            new_lon = gps_lon + lon_change
+        corners =[
+        (gps_lat + lat_offset_short * math.cos(yaw_rad) -lat_offset_outward * math.sin(yaw_rad),
+        gps_lon + lon_offset_short * math.sin(yaw_rad) - lon_offset_outward * math.cos(yaw_rad)),
+        (gps_lat - lat_offset_short * math.cos(yaw_rad) - lat_offset_outward * math.sin(yaw_rad),
+        gps_lon - lon_offset_short * math.sin(yaw_rad) - lon_offset_outward * math.cos(yaw_rad)),
+        (gps_lat - lat_offset_long * math.cos(yaw_rad) + lat_offset_outward * math.sin(yaw_rad),
+        gps_lon - lon_offset_long * math.sin(yaw_rad) + lon_offset_outward * math.cos(yaw_rad)),
+        (gps_lat + lat_offset_long * math.cos(yaw_rad) + lat_offset_outward * math.sin(yaw_rad),
+         gps_lon + lon_offset_long * math.sin(yaw_rad) + lon_offset_outward * math.cos(yaw_rad))
+        ]
 
-            corners.append((new_lat, new_lon))
-
-        #store trapezoid
         trapezoid_data[filename] = corners
+
 
     return trapezoid_data
 
