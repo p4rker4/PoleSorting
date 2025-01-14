@@ -3,7 +3,6 @@ from exiftool import ExifToolHelper
 import math
 import geopandas as gpd
 from shapely.geometry import Polygon, Point
-from Functions import read_pole_data
 import shutil
 from geopy.distance import geodesic
 

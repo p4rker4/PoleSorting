@@ -144,8 +144,6 @@ class ImageAnalysis:
         image_points = []
         image_names = []
 
-        print(image_metadata)
-
         for filename, data in image_metadata.items():
             gps_lat = float(data['XMP:GPSLatitude'])
             gps_lon = float(data['XMP:GPSLongitude'])
@@ -167,7 +165,7 @@ class ImageAnalysis:
             trapezoid_names.append(filename)
 
         if trapezoid_polygons:
-            trapezoid_gdf = gpd.GeoDataFrame({'image': trapezoid_names, 'geometry': trapezoid_polygons}, crs='EPSG:4326')
+            trapezoid_gdf = gpd.GeoDataFrame({'image': trapezoid_names,'geometry': trapezoid_polygons}, crs='EPSG:4326')
 
         #poles
         pole_points = []
