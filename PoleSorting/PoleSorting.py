@@ -102,11 +102,12 @@ class FolderAnalysis:
 class ImageAnalysis:
 
     def __init__(self):
-        self.inside_poles = None
+        self.inside_poles = {}
         self.folder_path = None
         self.trapezoids = None
         self.pole_data = None
         self.image_metadata = None
+        self.outside_poles = None
 
     def menu(self):
         print("Image Based Analysis")
@@ -114,26 +115,25 @@ class ImageAnalysis:
         print("1. Process Images")
         print("2. View Results")
         print("3. Export Results to CSV")
-        print("4. Export Matches to Pole Folders")
-        print("5. Export to Shapefile")
-        print("6. Return to Main Menu")
+        print("4. Export to Shapefile")
+        print("5. Return to Main Menu")
         print('-' * 50)
 
     def process_images(self):
         self.folder_path = input('Input folder path: ')
         csv_file = input("Path to pole CSV file: ")
+        self.destination_folder = 'Output/Sorted'
 
         self.image_metadata = extract_image_metadata(self.folder_path)
         self.trapezoids = create_trapezoid(self.image_metadata)
         self.pole_data = read_pole_data(csv_file)
-        self.inside_poles = match_pole_to_trapezoid(self.trapezoids, self.pole_data)
 
-    def export_matches(self):
-        if self.inside_poles and self.folder_path:
-            destination_folder = input('Input path where you want poles to be exported: ')
-            sort_into_folders(self.inside_poles, destination_folder, self.folder_path)
-        else:
-            print("No processed data. Run option 1 first.")
+        self.inside_poles, self.outside_poles = match_pole_to_trapezoid(self.trapezoids, self.pole_data)
+
+        print("Outside Poles", self.outside_poles)
+        print("Inside Poles", self.inside_poles)
+
+        sort_into_folders(self.inside_poles, self.destination_folder, self.folder_path)
 
     def export_to_shapefile(self, image_metadata, trapezoids, pole_data):
         image_gdf = gpd.GeoDataFrame(columns=['image', 'geometry'], crs='EPSG:4326')
@@ -196,10 +196,8 @@ class ImageAnalysis:
             elif choice == '3':
                 print('TBD')
             elif choice == '4':
-                self.export_matches()
-            elif choice == '5':
                 self.export_to_shapefile(self.image_metadata, self.trapezoids, self.pole_data)
-            elif choice == '6':
+            elif choice == '5':
                 break
             else:
                 print('Select a number from the list.')

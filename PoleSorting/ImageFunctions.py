@@ -52,6 +52,8 @@ def create_trapezoid(metadata_dict):
 
 def match_pole_to_trapezoid(trapezoids, pole_data):
     inside_poles = {trapezoid_name: [] for trapezoid_name in trapezoids}
+    outside_poles = []
+
     #for each trapezoid,
     for trapezoid_name, trapezoid_points in trapezoids.items():
         #make a polygon
@@ -65,7 +67,11 @@ def match_pole_to_trapezoid(trapezoids, pole_data):
             #see if that point is in the polygon, if yes, append the pole name to the list
             if trapezoid.contains(point):
                 inside_poles[trapezoid_name].append(pole_id)
-    return inside_poles
+
+        if not inside_poles[trapezoid_name]:
+            outside_poles.append(trapezoid_name)
+
+    return inside_poles, outside_poles
 
 def sort_into_folders(inside_poles, destination_folder, folder_path):
     #for each image trapezoid, if it has a match,
@@ -80,9 +86,5 @@ def sort_into_folders(inside_poles, destination_folder, folder_path):
                 source_path = os.path.join(folder_path, trapezoid_name)
                 destination_path = os.path.join(pole_folder, trapezoid_name)
 
-                #error if the image doesn't exist for some reason
-                if os.path.exists(source_path):
-                    shutil.move(source_path, destination_path)
-                    print(f"Moved {trapezoid_name} to {pole_folder}")
-                else:
-                    print(f"Warning: {trapezoid_name} not found in {source_folder}")
+                shutil.move(source_path, destination_path)
+
