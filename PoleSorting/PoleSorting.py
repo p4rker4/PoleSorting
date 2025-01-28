@@ -102,12 +102,12 @@ class FolderAnalysis:
 class ImageAnalysis:
 
     def __init__(self):
-        self.inside_poles = {}
+        self.inside_poles = None
         self.folder_path = None
         self.trapezoids = None
         self.pole_data = None
         self.image_metadata = None
-        self.outside_poles = None
+        self.no_poles = None
 
     def menu(self):
         print("Image Based Analysis")
@@ -122,18 +122,19 @@ class ImageAnalysis:
     def process_images(self):
         self.folder_path = input('Input folder path: ')
         csv_file = input("Path to pole CSV file: ")
-        self.destination_folder = 'Output/Sorted'
-
+        self.sorted_destination_folder = 'Output/Sorted'
+        self.destination_folder = 'Output'
         self.image_metadata = extract_image_metadata(self.folder_path)
         self.trapezoids = create_trapezoid(self.image_metadata)
         self.pole_data = read_pole_data(csv_file)
 
-        self.inside_poles, self.outside_poles = match_pole_to_trapezoid(self.trapezoids, self.pole_data)
+        self.inside_poles, self.no_poles, self.multiple_poles = match_pole_to_trapezoid(self.trapezoids, self.pole_data)
 
-        print("Outside Poles", self.outside_poles)
-        print("Inside Poles", self.inside_poles)
+        print(f'{len(self.inside_poles)} pole matches.')
+        print(f'{len(self.no_poles)} unmatched poles.')
+        print(f'{len(self.multiple_poles)} pictures with multiple poles.')
 
-        sort_into_folders(self.inside_poles, self.destination_folder, self.folder_path)
+        sort_into_folders(self.inside_poles, self.no_poles, self.multiple_poles, self.sorted_destination_folder, self.destination_folder, self.folder_path)
 
     def export_to_shapefile(self, image_metadata, trapezoids, pole_data):
         image_gdf = gpd.GeoDataFrame(columns=['image', 'geometry'], crs='EPSG:4326')

@@ -52,7 +52,8 @@ def create_trapezoid(metadata_dict):
 
 def match_pole_to_trapezoid(trapezoids, pole_data):
     inside_poles = {trapezoid_name: [] for trapezoid_name in trapezoids}
-    outside_poles = []
+    no_poles = []
+    multiple_poles = {}
 
     #for each trapezoid,
     for trapezoid_name, trapezoid_points in trapezoids.items():
@@ -68,23 +69,53 @@ def match_pole_to_trapezoid(trapezoids, pole_data):
             if trapezoid.contains(point):
                 inside_poles[trapezoid_name].append(pole_id)
 
+        #if there's no poles attached, move it to no_poles
         if not inside_poles[trapezoid_name]:
-            outside_poles.append(trapezoid_name)
+            no_poles.append(trapezoid_name)
+            del inside_poles[trapezoid_name]
 
-    return inside_poles, outside_poles
+        #same for multiple, multiple_poles
 
-def sort_into_folders(inside_poles, destination_folder, folder_path):
+        elif len(inside_poles[trapezoid_name]) > 1:
+            multiple_poles[trapezoid_name] = inside_poles.pop(trapezoid_name)
+
+    return inside_poles, no_poles, multiple_poles
+
+def sort_into_folders(inside_poles, no_poles, multiple_poles, sorted_destination_folder, destination_folder, folder_path):
     #for each image trapezoid, if it has a match,
     for trapezoid_name, pole_ids in inside_poles.items():
         if pole_ids:
             for pole_id in pole_ids:
                 #make a pole folder if there isnt one
-                pole_folder = os.path.join(destination_folder, pole_id)
+                pole_folder = os.path.join(sorted_destination_folder, pole_id)
                 os.makedirs(pole_folder, exist_ok=True)
 
                 #move image to that folder
                 source_path = os.path.join(folder_path, trapezoid_name)
                 destination_path = os.path.join(pole_folder, trapezoid_name)
 
-                shutil.move(source_path, destination_path)
+                try:
+                    shutil.move(source_path, destination_path)
+                    #print(f'Moved {source_path} to {destination_path}')
+                except FileNotFoundError as e:
+                    print(f'Error: {e}. Source: {source_path}')
 
+    for trapezoid_name in no_poles:
+        source_path = os.path.join(folder_path, trapezoid_name)
+        destination_path = os.path.join(destination_folder, 'no_pole', trapezoid_name)
+        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+
+        try:
+            shutil.move(source_path, destination_path)
+        except FileNotFoundError as e:
+            print(f'Error: {e}. Source: {source_path}')
+
+    for trapezoid_name, pole_ids in multiple_poles.items():
+        source_path = os.path.join(folder_path, trapezoid_name)
+        destination_path = os.path.join(destination_folder, 'multiple_poles', trapezoid_name)
+        os.makedirs(os.path.dirname(destination_path), exist_ok=True)
+
+        try:
+            shutil.move(source_path, destination_path)
+        except FileNotFoundError as e:
+            print(f'Error: {e}. Source: {source_path}')
