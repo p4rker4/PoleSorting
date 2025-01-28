@@ -1,7 +1,6 @@
 import os
 from exiftool import ExifToolHelper
 import math
-import geopandas as gpd
 from shapely.geometry import Polygon, Point
 import shutil
 from geopy.distance import geodesic

@@ -1,19 +1,22 @@
-from Functions import get_and_process_folder, export_to_csv, validate_manual_sort, display_validation_results, read_pole_data
-from ImageFunctions import sort_into_folders, match_pole_to_trapezoid, extract_image_metadata, create_trapezoid
 import geopandas as gpd
 from shapely.geometry import Point, Polygon
+from Functions import (get_and_process_folder, export_to_csv,
+                       validate_manual_sort, display_validation_results, read_pole_data)
+from ImageFunctions import (sort_into_folders, match_pole_to_trapezoid,
+                            extract_image_metadata, create_trapezoid)
 
 def returntomenu():
     """Prompts the user to press Enter before returning to the menu."""
     input('\nPress Enter to return to the menu.')
 
+#folder based analysis
 class FolderAnalysis:
 
     def __init__(self):
         self.folder_matches = {}
 
     def menu(self):
-        print("Folder Based Analysis")
+        print("\nFolder Based Analysis")
         print("-" * 50)
         print("1. Process Pole Folders")
         print("2. View Results")
@@ -48,6 +51,7 @@ class FolderAnalysis:
             display_validation_results(correct_matches, incorrect_folders)
         else:
             print("Process pole folders first.")
+        returntomenu()
 
     def display_results(self):
         matched, no_gps_or_no_image, over_10m = [], [], []
@@ -73,8 +77,8 @@ class FolderAnalysis:
             matched_pole = self.folder_matches[folder]['closest_pole']
             avg_coords = self.folder_matches[folder]['average_coordinates']
             distance_in_meters = self.folder_matches[folder]['distance'] * 111000
-            print(f"{folder}: Closest Pole: {matched_pole}, Distance = {distance_in_meters:.2f} meters, "
-                  f"Lat = {avg_coords[0]:.6f}°, Lon = {avg_coords[1]:.6f}°")
+            print(f"{folder}: Closest Pole: {matched_pole}, Distance: {distance_in_meters:.2f} "
+                  f"meters, Lat = {avg_coords[0]:.6f}°, Lon = {avg_coords[1]:.6f}°")
 
         print("\nFolders with no GPS data or no images")
         print('-' * 50)
@@ -84,7 +88,7 @@ class FolderAnalysis:
     def run(self):
         while True:
             self.menu()
-            choice = input("Please select an option (1-5): ")
+            choice = input("\nPlease select an option (1-5): ")
 
             if choice == '1':
                 self.process_folders()
@@ -110,13 +114,11 @@ class ImageAnalysis:
         self.no_poles = None
 
     def menu(self):
-        print("Image Based Analysis")
+        print("\nImage Based Analysis")
         print("-" * 50)
         print("1. Process Images")
-        print("2. View Results")
-        print("3. Export Results to CSV")
-        print("4. Export to Shapefile")
-        print("5. Return to Main Menu")
+        print("2. Export to Shapefile")
+        print("3. Return to Main Menu")
         print('-' * 50)
 
     def process_images(self):
@@ -136,9 +138,9 @@ class ImageAnalysis:
 
         sort_into_folders(self.inside_poles, self.no_poles, self.multiple_poles, self.sorted_destination_folder, self.destination_folder, self.folder_path)
 
-    def export_to_shapefile(self, image_metadata, trapezoids, pole_data):
+    def export_to_shapefile(self, image_metadata, trapezoids, pole_data, inside_poles, no_poles, multiple_poles):
         image_gdf = gpd.GeoDataFrame(columns=['image', 'geometry'], crs='EPSG:4326')
-        trapezoid_gdf = gpd.GeoDataFrame(columns=gpd.GeoDataFrame(columns=['image', 'geometry'], crs='EPSG:4326'))
+        trapezoid_gdf = gpd.GeoDataFrame(columns=gpd.GeoDataFrame(columns=['image', 'geometry', 'pole'], crs='EPSG:4326'))
         pole_gdf = gpd.GeoDataFrame(columns=['pole', 'geometry'], crs='EPSG:4326')
 
         #image locations
@@ -155,9 +157,10 @@ class ImageAnalysis:
         if image_points:
             image_gdf = gpd.GeoDataFrame({'image': image_names, 'geometry': image_points}, crs='EPSG:4326')
 
-        #trapezoids
+        #TRAPEZOIDS
         trapezoid_polygons = []
         trapezoid_names = []
+        trapezoid_poles = []
 
         for filename, corners in trapezoids.items():
             corrected_corners = [(lon, lat) for lat, lon in corners]
@@ -165,8 +168,18 @@ class ImageAnalysis:
             trapezoid_polygons.append(polygon)
             trapezoid_names.append(filename)
 
+            #pole field population
+            if filename in inside_poles:
+                trapezoid_poles.append(inside_poles[filename])
+            elif filename in no_poles:
+                trapezoid_poles.append('No Match')
+            elif filename in multiple_poles:
+                trapezoid_poles.append('Multiple Poles')
+            else:
+                trapezoid_poles.append('Processing Error')
+
         if trapezoid_polygons:
-            trapezoid_gdf = gpd.GeoDataFrame({'image': trapezoid_names,'geometry': trapezoid_polygons}, crs='EPSG:4326')
+            trapezoid_gdf = gpd.GeoDataFrame({'image': trapezoid_names,'geometry': trapezoid_polygons, 'pole': trapezoid_poles}, crs='EPSG:4326')
 
         #poles
         pole_points = []
@@ -188,17 +201,13 @@ class ImageAnalysis:
     def run(self):
         while True:
             self.menu()
-            choice = input("Please select an option (1-5): ")
+            choice = input("\nPlease select an option (1-3): ")
 
             if choice == '1':
                 self.process_images()
             elif choice == '2':
-                print('TBD')
+                self.export_to_shapefile(self.image_metadata, self.trapezoids, self.pole_data, self.inside_poles, self.no_poles, self.multiple_poles)
             elif choice == '3':
-                print('TBD')
-            elif choice == '4':
-                self.export_to_shapefile(self.image_metadata, self.trapezoids, self.pole_data)
-            elif choice == '5':
                 break
             else:
                 print('Select a number from the list.')
