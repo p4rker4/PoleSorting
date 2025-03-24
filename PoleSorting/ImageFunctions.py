@@ -3,7 +3,32 @@ from exiftool import ExifToolHelper
 import math
 from shapely.geometry import Polygon, Point
 import shutil
+import csv
 from geopy.distance import geodesic
+
+def read_pole_data(csv_file):
+    pole_data = {}
+    pole_count = {}
+    try:
+        with open(csv_file, 'r') as file:
+            reader = csv.reader(file)
+            next(reader)  #skip header
+            for row in reader:
+                pole_num = row[0]
+                latitude = float(row[1])
+                longitude = float(row[2])
+
+                #check if the pole has a prior instance of the name, if it does, add 1 to its count and append it to the name
+                if pole_num in pole_count:
+                    pole_count[pole_num] += 1
+                    pole_num = f"{pole_num}-{pole_count[pole_num]}"
+                else:
+                    pole_count[pole_num] = 1
+
+                pole_data[pole_num] = (latitude, longitude)
+    except Exception as e:
+        print(f"Error reading CSV file: {e}")
+    return pole_data
 
 def extract_image_metadata(folder_path):
     #initialize as dictionary
@@ -15,20 +40,35 @@ def extract_image_metadata(folder_path):
                 image_path = os.path.join(folder_path, filename)
 
                 metadata = et.get_metadata(image_path)
-
                 for data in metadata:
-                    gps_lat = data.get('XMP:GPSLatitude')
-                    gps_lon = data.get('XMP:GPSLongitude')
-                    gimbal_yaw = data.get('XMP:GimbalYawDegree')
+                    if data.get('EXIF:Make') == "DJI":
+                        gps_lat = data.get('XMP:GPSLatitude')
+                        gps_lon = data.get('XMP:GPSLongitude')
+                        gimbal_yaw = data.get('XMP:GimbalYawDegree')
+                        gimbal_tilt = data.get('XMP:GimbalPitchDegree')
 
-                    if gps_lat is not None and gps_lon is not None and gimbal_yaw is not None:
-                        image_metadata[filename] = {
-                            'XMP:GPSLatitude': gps_lat,
-                            'XMP:GPSLongitude': gps_lon,
-                            'XMP:GimbalYawDegree': gimbal_yaw
-                        }
+                        if gps_lat is not None and gps_lon is not None and gimbal_yaw is not None and gimbal_tilt is not None:
+                            image_metadata[filename] = {
+                                'XMP:GPSLatitude': gps_lat,
+                                'XMP:GPSLongitude': gps_lon,
+                                'XMP:GimbalYawDegree': gimbal_yaw,
+                                'XMP:GimbalPitchDegree': gimbal_tilt}
+
+                    elif data.get('EXIF:Make') == "Skydio":
+                        gps_lat = data.get('XMP:LatitudeRaw')
+                        gps_lon = data.get('XMP:LongitudeRaw')
+                        gimbal_yaw = data.get('XMP:VehicleOrientationNEDYaw')
+                        gimbal_tilt = data.get('XMP:CameraOrientationNEDPitch')
+
+                        if gps_lat is not None and gps_lon is not None and gimbal_yaw is not None and gimbal_tilt is not None:
+                            image_metadata[filename] = {
+                                'XMP:GPSLatitude': gps_lat,
+                                'XMP:GPSLongitude': gps_lon,
+                                'XMP:GimbalYawDegree': gimbal_yaw,
+                                'XMP:GimbalPitchDegree:': gimbal_tilt}
     return image_metadata
 
+#if yaw below X, use this
 def create_trapezoid(metadata_dict):
     trapezoid_data = {}
     for filename, data in metadata_dict.items():
@@ -36,6 +76,7 @@ def create_trapezoid(metadata_dict):
         gps_lon = float(data['XMP:GPSLongitude'])
         yaw_degree = float(data['XMP:GimbalYawDegree'])
         yaw_rad = math.radians(yaw_degree)
+
         dx = math.cos(yaw_rad)
         dy = math.sin(yaw_rad)
         perp_dx = -dy
@@ -48,6 +89,10 @@ def create_trapezoid(metadata_dict):
         trapezoid_data[filename] = [(point1.latitude, point1.longitude), (point2.latitude, point2.longitude),
                                     (point3.latitude, point3.longitude), (point4.latitude, point4.longitude)]
     return trapezoid_data
+
+#for images that are looking practically straight down, if yaw above y, use this
+def create_square(metadata_dict):
+    square_data = {}
 
 def match_pole_to_trapezoid(trapezoids, pole_data):
     inside_poles = {trapezoid_name: [] for trapezoid_name in trapezoids}
