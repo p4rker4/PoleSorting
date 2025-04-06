@@ -1,11 +1,16 @@
 import geopandas as gpd
+import simplekml
+import zipfile
+import os
 from shapely.geometry import Point, Polygon
 from ImageFunctions import (sort_into_folders, match_pole_to_trapezoid,
-                            extract_image_metadata, create_trapezoid, read_pole_data)
+                            extract_image_metadata, create_trapezoid, create_square, read_pole_data)
 
 def returntomenu():
-    """Prompts the user to press Enter before returning to the menu."""
     input('\nPress Enter to return to the menu.')
+
+def merge_shapes(square_data, trapezoid_data):
+    return {**square_data, **trapezoid_data}
 
 class ImageAnalysis:
 
@@ -32,16 +37,18 @@ class ImageAnalysis:
         self.destination_folder = 'Output'
         self.image_metadata = extract_image_metadata(self.folder_path)
         self.trapezoids = create_trapezoid(self.image_metadata)
-        #self.squares = create_squares(self.image_metadata)
+        self.squares = create_square(self.image_metadata)
+        self.polygons = merge_shapes(self.trapezoids, self.squares)
         self.pole_data = read_pole_data(csv_file)
 
-        self.inside_poles, self.no_poles, self.multiple_poles = match_pole_to_trapezoid(self.trapezoids, self.pole_data)
+        self.inside_poles, self.no_poles, self.multiple_poles = (match_pole_to_trapezoid(self.polygons,self.pole_data))
 
         print(f'{len(self.inside_poles)} matched images.')
         print(f'{len(self.no_poles)} unmatched images.')
         print(f'{len(self.multiple_poles)} pictures with multiple poles.')
 
-        sort_into_folders(self.inside_poles, self.no_poles, self.multiple_poles, self.sorted_destination_folder, self.destination_folder, self.folder_path)
+        sort_into_folders(self.inside_poles, self.no_poles, self.multiple_poles,
+                          self.sorted_destination_folder, self.destination_folder, self.folder_path)
 
     def export_to_shapefile(self, image_metadata, trapezoids, pole_data, inside_poles, no_poles, multiple_poles):
         image_gdf = gpd.GeoDataFrame(columns=['image', 'geometry'], crs='EPSG:4326')
@@ -103,6 +110,50 @@ class ImageAnalysis:
 
         print("Shapefiles created successfully.")
 
+    def export_to_kml(self, image_metadata, trapezoids, pole_data, inside_poles, no_poles, multiple_poles,
+                      output_filename="output.kmz"):
+        kml = simplekml.Kml()
+
+        #separate folders for each thing
+        poles_folder = kml.newfolder(name="Pole Locations")
+        images_folder = kml.newfolder(name="Image Locations")
+        trapezoids_folder = kml.newfolder(name="Trapezoids")
+
+        #images
+        for filename, data in image_metadata.items():
+            gps_lat = float(data['XMP:GPSLatitude'])
+            gps_lon = float(data['XMP:GPSLongitude'])
+            images_folder.newpoint(name=filename, coords=[(gps_lon, gps_lat)])
+
+        #polygons
+        for filename, corners in trapezoids.items():
+            corrected_corners = [(lon, lat) for lat, lon in corners]
+            corrected_corners.append(corrected_corners[0])  # Close the polygon
+            polygon = trapezoids_folder.newpolygon(name=filename, outerboundaryis=corrected_corners)
+
+            #populate pole data field as description
+            if filename in inside_poles:
+                polygon.description = f"Pole: {inside_poles[filename]}"
+            elif filename in no_poles:
+                polygon.description = "Pole: No Match"
+            elif filename in multiple_poles:
+                polygon.description = "Pole: Multiple Poles"
+            else:
+                polygon.description = "Pole: Processing Error"
+
+        #polelocations
+        for pole_id, (lat, lon) in pole_data.items():
+            poles_folder.newpoint(name=pole_id, coords=[(lon, lat)])
+
+        #save as kmz
+        kml_filename = output_filename.replace(".kmz", ".kml")
+        kml.save(kml_filename)
+        with zipfile.ZipFile(output_filename, 'w', zipfile.ZIP_DEFLATED) as kmz:
+            kmz.write(kml_filename, os.path.basename(kml_filename))
+        os.remove(kml_filename)
+
+        print(f"KMZ file created successfully: {output_filename}")
+
     def run(self):
         while True:
             self.menu()
@@ -111,7 +162,10 @@ class ImageAnalysis:
             if choice == '1':
                 self.process_images()
             elif choice == '2':
-                self.export_to_shapefile(self.image_metadata, self.trapezoids, self.pole_data, self.inside_poles, self.no_poles, self.multiple_poles)
+                self.export_to_shapefile(self.image_metadata, self.polygons, self.pole_data, self.inside_poles,
+                                         self.no_poles, self.multiple_poles)
+                self.export_to_kml(self.image_metadata, self.polygons, self.pole_data, self.inside_poles,
+                                   self.no_poles, self.multiple_poles)
             elif choice == '3':
                 break
             else:

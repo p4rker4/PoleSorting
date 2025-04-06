@@ -1,9 +1,9 @@
 import os
-from exiftool import ExifToolHelper
-import math
-from shapely.geometry import Polygon, Point
 import shutil
 import csv
+import math
+from exiftool import ExifToolHelper
+from shapely.geometry import Polygon, Point
 from geopy.distance import geodesic
 
 def read_pole_data(csv_file):
@@ -65,34 +65,61 @@ def extract_image_metadata(folder_path):
                                 'XMP:GPSLatitude': gps_lat,
                                 'XMP:GPSLongitude': gps_lon,
                                 'XMP:GimbalYawDegree': gimbal_yaw,
-                                'XMP:GimbalPitchDegree:': gimbal_tilt}
+                                'XMP:GimbalPitchDegree': gimbal_tilt}
     return image_metadata
 
-#if yaw below X, use this
+#if tilt below X, use this
 def create_trapezoid(metadata_dict):
     trapezoid_data = {}
     for filename, data in metadata_dict.items():
+        gimbal_tilt = float(data['XMP:GimbalPitchDegree'])
         gps_lat = float(data['XMP:GPSLatitude'])
         gps_lon = float(data['XMP:GPSLongitude'])
         yaw_degree = float(data['XMP:GimbalYawDegree'])
         yaw_rad = math.radians(yaw_degree)
 
-        dx = math.cos(yaw_rad)
-        dy = math.sin(yaw_rad)
-        perp_dx = -dy
-        perp_dy = dx
-        point1 = geodesic(meters=10).destination((gps_lat, gps_lon), math.degrees(math.atan2(perp_dy, perp_dx)))
-        point2 = geodesic(meters=10).destination((gps_lat, gps_lon), math.degrees(math.atan2(-perp_dy, -perp_dx)))
-        forward_point = geodesic(meters=20).destination((gps_lat, gps_lon), yaw_degree)
-        point4 = geodesic(meters=20).destination((forward_point.latitude, forward_point.longitude), math.degrees(math.atan2(perp_dy, perp_dx)))
-        point3 = geodesic(meters=20).destination((forward_point.latitude, forward_point.longitude), math.degrees(math.atan2(-perp_dy, -perp_dx)))
-        trapezoid_data[filename] = [(point1.latitude, point1.longitude), (point2.latitude, point2.longitude),
-                                    (point3.latitude, point3.longitude), (point4.latitude, point4.longitude)]
+        if abs(gimbal_tilt) < 65:
+            dx = math.cos(yaw_rad)
+            dy = math.sin(yaw_rad)
+            perp_dx = -dy
+            perp_dy = dx
+            point1 = geodesic(meters=10).destination((gps_lat, gps_lon), math.degrees(math.atan2(perp_dy, perp_dx)))
+            point2 = geodesic(meters=10).destination((gps_lat, gps_lon), math.degrees(math.atan2(-perp_dy, -perp_dx)))
+            forward_point = geodesic(meters=20).destination((gps_lat, gps_lon), yaw_degree)
+            point4 = geodesic(meters=20).destination((forward_point.latitude, forward_point.longitude), math.degrees(math.atan2(perp_dy, perp_dx)))
+            point3 = geodesic(meters=20).destination((forward_point.latitude, forward_point.longitude), math.degrees(math.atan2(-perp_dy, -perp_dx)))
+            trapezoid_data[filename] = [(point1.latitude, point1.longitude), (point2.latitude, point2.longitude),
+                                        (point3.latitude, point3.longitude), (point4.latitude, point4.longitude)]
+        else:
+            continue
     return trapezoid_data
 
-#for images that are looking practically straight down, if yaw above y, use this
+#for images that are looking practically straight down, if tilt above X, use this
 def create_square(metadata_dict):
     square_data = {}
+    for filename, data in metadata_dict.items():
+        gimbal_tilt = float(data['XMP:GimbalPitchDegree'])
+        gps_lat = float(data['XMP:GPSLatitude'])
+        gps_lon = float(data['XMP:GPSLongitude'])
+
+        if abs(gimbal_tilt) > 65:
+            #define the four corner points
+            point1 = geodesic(meters=10).destination((gps_lat, gps_lon), 0)   #5m directly north
+            point2 = geodesic(meters=10).destination((gps_lat, gps_lon), 180) #5m directly south
+            point3 = geodesic(meters=10).destination((point1.latitude, point1.longitude), 90)  #NE
+            point4 = geodesic(meters=10).destination((point2.latitude, point2.longitude), 90)  #SE
+            point5 = geodesic(meters=10).destination((point1.latitude, point1.longitude), 270) #NW
+            point6 = geodesic(meters=10).destination((point2.latitude, point2.longitude), 270) #SW
+
+            square_data[filename] = [
+                (point5.latitude, point5.longitude),  #NW
+                (point3.latitude, point3.longitude),  #NE
+                (point4.latitude, point4.longitude),  #SE
+                (point6.latitude, point6.longitude)]  #SW
+        else:
+            continue
+
+    return square_data
 
 def match_pole_to_trapezoid(trapezoids, pole_data):
     inside_poles = {trapezoid_name: [] for trapezoid_name in trapezoids}
